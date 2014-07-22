@@ -1,0 +1,12 @@
+.DS\_Store
+.DS_Store
+*.sw?
+
+/build_temp/
+/resources-ram/
+mkb-quick.txt
+project.ini
+development.icf
+iwtrace.txt
+
+/builds/
