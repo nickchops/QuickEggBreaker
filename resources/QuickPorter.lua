@@ -81,11 +81,6 @@ function QNode:removeSelf()
     self:removeFromParent()
 end
 
--- Used by GroupObjects, which are Nodes in Quick
-function QNode:insert(child)
-    self:addChild(child)
-end
-
 function setColourGrey(colour, value)
     value = value*255
     colour[1] = value
@@ -129,11 +124,9 @@ end
 -- Events
 
 -- Override event from QEvent so we can change names, set missing values etc when dispatching any event
--- Lack of user-data/params parameter for events in Quick means this is the only easy way to do this
--- If we could pass arbitrary data in an event, we could register intermediate functions
--- to do the converting which would be less intrusive. This way is also nice and simple though!
---quickPorter.handleEventWithListener_orig = handleEventWithListener
---handleEventWithListener = quickPorter.handleEventWithListener
+-- Lack of user-data/params parameter for events in Quick means this is the easiest way to do this
+-- If we could pass arbitrary data in an event, that would be ideal
+-- We could also use intermediate functions similar to node touch events. Thats prob cleaner.
 
 function quickPorter.handleEventWithListener(event, listener)
     
@@ -164,10 +157,14 @@ function quickPorter.handleEventWithListener(event, listener)
         end
     end
     if event.name == "collisionPreSolve" then
-        event.name = "preCollision"
+        if listener.func then
+            event.name = "preCollision" -- in table, set later in display.__preColRedirect as index name must match Quick event name
+        end
     elseif event.name == "collisionPostSolve" then
-        event.name = "postCollision"
-        event.force = event.impulse
+        if listener.func then
+            event.name = "postCollision"
+        end
+        event.force = event.impulse or 0 -- TODO: seem to get zero sometimes...
         --TODO Corona uses force as it's frames are fixed length (unless slowdown!) force
         -- ought to be impulse/time - check how this matches up in reality. Suspect corona is just returning impulse
         event.friction = 0.5 --TODO: not yet supported in Quick!
@@ -176,6 +173,8 @@ function quickPorter.handleEventWithListener(event, listener)
     return quickPorter.handleEventWithListener_orig(event, listener)
 end
 
+quickPorter.handleEventWithListener_orig = handleEventWithListener
+handleEventWithListener = quickPorter.handleEventWithListener
 
 ---------------------------------------------------------
 --Runtime
@@ -237,29 +236,21 @@ end
 --Audio
 audio.loadSound_orig = audio.loadSound
 audio.loadSound = function(fileName, baseDir)
-    return nil
-    --[[
     if baseDir then fileName = baseDir .. "/" .. fileName end
     audio:loadSound_orig(fileName) --has no return value!
     local handle = {portType = "sound", fileName = fileName}
     return handle
-    ]]--
 end
 
 audio.loadStream_orig = audio.loadStream
 audio.loadStream = function(fileName, baseDir)
-    return nil
-    --[[
     if baseDir then fileName = baseDir .. "/" .. fileName end
     audio:loadStream_orig(fileName)
     local handle = {portType = "stream", fileName = fileName}
     return handle
-    ]]--
 end
 
 function audio.play(handle, options)
-    return
-    --[[
     local loop = nil
     if options then
         dbg.assert(options.channel == nil, "audio.play: channel not supported")
@@ -270,11 +261,10 @@ function audio.play(handle, options)
     end
     
     if handle.portType == "stream" then
-        audio:playStream(fileName, loop)
+        audio:playStream(handle.fileName, loop)
     else
-        audio:playSound(fileName, loop)
+        audio:playSound(handle.fileName, loop)
     end
-    ]]--
 end
 
 ---------------------------------------------------------

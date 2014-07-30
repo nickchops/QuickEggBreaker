@@ -18,7 +18,7 @@ widget.Button.__newindex = function(table, key, value)
     if key == "x" or key == "y" then
         table.default[key] = value
     elseif key == "onPress" then
-        table.onPress = options.onPress
+        rawset(table, key, value)
         table.default:addEventListener("touch", table)
     end
 end
@@ -34,14 +34,18 @@ function widget.newButton(options)
     ]]--
     
     local button = {}
-    setmetatable(button, widget.Button)
     
-    button.default = director:createSprite({source=options.defaultFile})
-    button.over = director:createSprite({source=options.overFile, visible=false})
-    button.label = director:createLabel({x=0,y=0, text=options.label, color=options.labelColor})
-    button:addChild(button.over)
-    button:addChild(button.label)
-	--TODO: options.emboss for now
+    button.default = director:createSprite({source=options.defaultFile, yFlip = true})
+    button.over = director:createSprite({source=options.overFile, isVisible=false, yFlip = true})
+    button.label = director:createLabel({x=button.default.w/2,y=button.default.h/2, text=options.label, color=options.labelColor})
+    button.label.yScale = -1
+    button.label.x = button.label.x - button.label.wText/2
+    button.label.y = button.label.y + button.label.hText/2
+    button.default:addChild(button.over)
+    button.default:addChild(button.label)
+	--TODO: options.emboss
+    
+    setmetatable(button, widget.Button)
     
     if options.left then
         button.default.x = options.left
@@ -60,25 +64,31 @@ function widget.newButton(options)
         button.onPress = options.onPress
         button.default:addEventListener("touch", button)
     end
+    
+    return button
 end
 
 --TODO: need system listener too for tracking touches released not over the button...
 function widget.Button:touch(event)
     if event.phase == "began" then
-        self.over.visible = true
-        local portEvent = {name="onPress", phase="began", target=self} --not sure if target is needed
-        if type(self.onPress) == "function" then
-            self.onPress(portEvent)
-        else
-            self.onPress:onPress(portEvent)
+        self.over.isVisible = true
+        if self.onPress then
+            local portEvent = {name="onPress", phase="began", target=self} --not sure if target is needed
+            if type(self.onPress) == "function" then
+                self.onPress(portEvent)
+            else
+                self.onPress:onPress(portEvent)
+            end
         end
     elseif event.phase == "ended" then
-        self.over.visible = false
-        local portEvent = {name="onPress", phase="began", target=self}
-        if type(self.onRelease) == "function" then
-            self.onRelease(portEvent)
-        else
-            self.onRelease:onRelease(portEvent)
+        self.over.isVisible = false
+        if self.onRelease then
+            local portEvent = {name="onPress", phase="began", target=self}
+            if type(self.onRelease) == "function" then
+                self.onRelease(portEvent)
+            else
+                self.onRelease:onRelease(portEvent)
+            end
         end
     end
 end

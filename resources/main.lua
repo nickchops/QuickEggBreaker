@@ -10,7 +10,8 @@
 --	Supports Graphics 2.0
 --
 -- Modified by Nick Smith:
--- Port to Marmalade Quick
+-- Can now run with Marmalade Quick. Removed use of movieclip as not working yet
+-- Everythign runs 95% as expected via QuickPorter.lua and associated files
 ---------------------------------------------------------------------------------------
 
 require("mobdebug").start()
@@ -23,7 +24,7 @@ local _W = display.contentWidth
 local _H = display.contentHeight
 
 -- Require the widget library
---local widget = require( "widget" )
+local widget = require( "widget" )
 
 -- Activate physics engine
 local physics = require("physics")
@@ -32,11 +33,15 @@ physics.start()
 display.setStatusBar( display.HiddenStatusBar )
 
 -- Load some external Lua libraries (from project directory)
-----NSMITH--local movieclip = require( "movieclip" )
---movieclip = {}
---movieclip.newAnim = function(imageTable)
---    return display.newImage(imageTable[1])
---end
+
+----------------------------------------------------
+--NSMITH: change to file 1/1 - movieclip will compile but has issues. Not looked into yet. Prob easy to solve.
+--local movieclip = require( "movieclip" )
+movieclip = {}
+movieclip.newAnim = function(imageTable)
+    return display.newImage(imageTable[1])
+end
+----------------------------------------------------
 
 local ballInPlay = false
 
@@ -47,9 +52,9 @@ game.x = 0
 ------------------------------------------------------------
 -- Set up sound effects
 
-local boingSound = audio.loadSound("Snare.pcm")--("boing_wav.wav")
-local knockSound = audio.loadSound("TopHatC.pcm")--("knock_wav.wav")
-local squishSound = audio.loadSound("SplashC.pcm")--("squish_wav.wav")
+local boingSound = audio.loadSound("boing_wav.wav")
+local knockSound = audio.loadSound("knock_wav.wav")
+local squishSound = audio.loadSound("squish_wav.wav")
 
 ------------------------------------------------------------
 -- Sky and ground graphics
@@ -71,13 +76,11 @@ game:insert( grass2 )
 physics.addBody( grass2, "static", { friction=0.5, bounce=0.3 } )
 
 local arrow = display.newImage( "arrow.png", 50, 120 )
-game:insert( arrow );
+game:insert( arrow )
 
---local instructionLabel = display.newText( "tap screen to launch", centerX, 10 + display.screenOriginY, native.systemFont, 18 )
---instructionLabel:setFillColor( 235/255, 235/255, 1 )
---game:insert( instructionLabel )
-
-
+local instructionLabel = display.newText( "tap screen to launch", centerX, 10 + display.screenOriginY, native.systemFont, 18 )
+instructionLabel:setFillColor( 235/255, 235/255, 1 )
+game:insert( instructionLabel )
 
 ------------------------------------------------------------
 -- Add trampoline
@@ -85,18 +88,13 @@ game:insert( arrow );
 trampoline = display.newImage( "trampoline.png" )
 game:insert( trampoline )
 
---physics.addBody( trampoline, "static", { friction=0.5, bounce=1.2 } )
+physics.addBody( trampoline, "static", { friction=0.5, bounce=1.2 } )
+
+--trampoline.__node.physics:setTransform(55,355,-45)
+
 trampoline.x = 50 
 trampoline.y = 355
 trampoline.rotation = 45
-
---NSMITH: move physics till after transfor setting as in Quick those stop working
--- once added to physics. Only proper fix is to not return nodes from display.newImage
--- at all. Instead, return a dummy table that has the node as its  metatable
--- and make node's __ndex function override known cases like this (.x -> funtion that
--- disables and reenables physics!...)
-physics.addBody( trampoline, "static", { friction=0.5, bounce=1.2 } )
-
 
 
 ------------------------------------------------------------------------
@@ -141,7 +139,6 @@ beam3 = display.newImage( "beam.png" )
 game:insert( beam3 ); beam3.x = 744; beam3.y = 168
 physics.addBody( beam3, castleBodyHeavy )
 
---[[
 
 ------------------------------------------------------------
 -- Construct eggs
@@ -161,7 +158,6 @@ egg3 = movieclip.newAnim{ "egg.png", "egg_cracked.png" }
 game:insert( egg3 ); egg3.x = 744; egg3.y = 258; egg3.id = "egg3"
 physics.addBody( egg3, eggBody )
 
-
 ------------------------------------------------------------
 -- Simple score display
 local scoreDisplay = display.newText( "0", 0, 0, native.systemFont, 32 )
@@ -178,7 +174,7 @@ local boulder = display.newImage( "boulder.png" )
 game:insert( boulder )
 
 -- initial body type is "kinematic" so it doesn't fall under gravity
-physics.addBody( boulder, { density=15.0, friction=0.5, bounce=0.2, radius=36 } )
+physics.addBody( boulder, { density=15.0, friction=0.5, bounce=0.2, radius=36, bodyType = "kinematic" } )
 
 local function resetBoulder()
 	boulder.bodyType = "kinematic"
@@ -219,7 +215,11 @@ function startListening()
 		
 		-- Crack this egg if collision force is high enough
 		if ( event.force > 6.0 ) then
-			----NSMITH--self:stopAtFrame(2)
+----------------------------------------------------
+--NSMITH: change to file 1/2 - replace movieclip logic
+--			self:stopAtFrame(2)
+            self.alpha = 0.5
+----------------------------------------------------
 			
 			audio.play( squishSound )				
 			score = score + 150
@@ -265,10 +265,11 @@ local function dropBoulder ( event )
 		boulder.y = event.y
 		-- change body type to dynamic, so gravity affects it
 		boulder.bodyType = "dynamic"
-
-		startListening()
+        
+		--startListening()
 	end
 end
+startListening()
 
 local function newRound( event )
 	resetBoulder()
@@ -277,19 +278,18 @@ local function newRound( event )
 	return true
 end
 
---local resetButton = widget.newButton
---{
---	defaultFile = "buttonRed.png",
---	overFile = "buttonRedOver.png",
---	label = "New Boulder",
---	labelColor = 
---	{ 
---		default = { 255 }, 
---	},
---	emboss = true,
---	onPress = newRound
---}
-local resetButton = {}
+local resetButton = widget.newButton
+{
+	defaultFile = "buttonRed.png",
+	overFile = "buttonRedOver.png",
+	label = "New Boulder",
+	labelColor = 
+	{ 
+		default = { 255 }, 
+	},
+	emboss = true,
+	onPress = newRound
+}
 resetButton.x = 160
 resetButton.y = 450
 
@@ -299,4 +299,4 @@ timer.performWithDelay( 3000, startListening )
 
 -- Finally, add a touch listener to the sky, for creating new boulders
 sky:addEventListener( "touch", dropBoulder )
-]]--
+

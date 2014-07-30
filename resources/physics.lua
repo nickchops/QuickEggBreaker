@@ -1,5 +1,9 @@
 
+--TODO: prob want to replace "physics" and set up original one as __index metatable of it...
+
 physics.porter = {}
+local xGravity,yGravity = physics:getGravity()
+physics:setGravity(xGravity,-yGravity)
 
 function physics.start()
     dbg.print("Physics start called - a no-op in Quick!")
@@ -34,113 +38,27 @@ function physics.addBody(node, p1, p2)
                      density=values.density,
                      restitution=values.bounce,
                      radius=values.radius,
-                     type=bodyType}
+                     type=values.bodyType or bodyType}
     
-    physics:addNode(node, qValues)
-    
-    -- metatable to allow index lookup calls to call functions
-    -- e.g. node.angularVelocity -> node.physics:setAngularVelocity() or node.physics:getAngularVelocity
-    --use raw set and get to avoid potential stack overflow if there are chains of metmethods!
-    
-    if metaOverrideFlag == false then
-        metaOverrideFlag = true
-        local nodeMt = getmetatable(node)
-        
-        physics.porter.nodeMt__index = rawget(nodeMt, "__index")
-        rawset(nodeMt, "__index", physics.porter.__index)
-        
-        physics.porter.nodeMt__newindex = rawget(nodeMt, "__newindex")
-        rawset(nodeMt, "__newindex", physics.porter.__newindex)
-    end
-    
-    --TODO: we're setting these for ever node, but there's prob a global metatable to set them in
-    --once. Setitng them above likely would just sets them for the first object in its personal
-    --values metatable...
+    physics:addNode(node.__node, qValues)
     
     -- object:setLinearVelocity() -> node.physics:setLinearVelocity() etc.
     node.setLinearVelocity = physics.porter.setLinearVelocity
-    
-    -- Node event listeners for physics. May want to move these to be registered for all
-    -- events after call to createXXX. Or may be able to do better via metatable
-    -- or overriding call in QNode or soemthing...
-    node.addEventListener_orig = node.addEventListener
-    node.addEventListener = physics.porter.addEventListener
-    
-    node.removeEventListener_orig = node.removeEventListener
-    node.removeEventListener = physics.porter.removeEventListener
 end
-
---TODO: move metatable stuff to display.newXXX() and in newXXX, return a dummy table
--- with a new metatable whose __index redirects to using node apart from in
--- unusual cases like setting position when phsyics is running.
-
-physics.porter.__index = function (table, key)
-    if key == "angularVelocity" then
-        return table:getAngularVelocity() --might infinite loop if user called with non-physics node!
-    else 
-        local orig = physics.porter.nodeMt__index
-        if orig then
-            if(type(orig) == "function") then
-                return orig(table, key)
-            else
-                return orig[key]
-            end
-        else
-            return nil
-        end
-    end
-end
-
-physics.porter.__newindex = function(table, key, value)
-    if key == "angularVelocity" then
-        table:setAngularVelocity(value)
-    --[[elseif key == "x" and table.physics then
-        setTransform(value, table.y, table.rotation)
-    elseif key == "y" and table.physics then
-        setTransform(table.x, value, table.rotation)
-    elseif key == "rotation" and table.physics then
-        setTransform(table.x, table.y, value)]]--
-    else
-        local orig = physics.porter.nodeMt__newindex
-        if orig then
-            if(type(orig) == "function") then
-                orig(table, key, value)
-            else
-                orig[key] = value
-            end
-        else
-            table[key] = value
-        end
-    end
-end
-
 
 physics.porter.setLinearVelocity = function(self,x,y)
     self.physics:setLinearVelocity(x,y)
 end
 
-physics.porter.addEventListener = function(self, eventName, listener)        
-    if eventName == "preCollision" then
-        eventName = "collisionPreSolve"
-    end
-    if eventName == "postCollision" then
-        eventName = "collisionPostSolve"
-        -- Docs are a little unclear... Corona's imply this happens *after* regular collision
-        -- event and Quick's before. However I think both are actually before so no issue.
-    end
-    
-    self:addEventListener_orig(eventName, listener)
+physics.porter.getGravity_orig = physics.getGravity
+function physics:getGravity()
+    local x,y = physics.porter.getGravity_orig(physics)
+    return x, -y
 end
-    
-physics.porter.removeEventListener = function(self, eventName, listener)    
-    if eventName == "preCollision" then
-        eventName = "collisionPreSolve"
-    end
-    if eventName == "postCollision" then
-        eventName = "collisionPostSolve"
-    end
-    
-    self:removeEventListener_orig(eventName, listener)
+
+physics.porter.setGravity_orig = physics.setGravity
+function physics:setGravity()
+    physics.porter.setGravity_orig(physics, x, -y)
 end
 
 return physics
