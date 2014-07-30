@@ -1,5 +1,7 @@
 [S3E]
 MemMgrMaxAllocWarning=0
+WinHeight = 480
+WinWidth = 320
 
 [GL]
 

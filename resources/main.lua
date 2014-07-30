@@ -1,7 +1,7 @@
--- 
+--
 -- Abstract: EggBreaker sample project
 -- A simplified "crush the castle" game demo, where objects have internal listeners for collision events
--- 
+--
 -- Version: 1.2
 --
 -- Sample code is MIT licensed, see http://www.coronalabs.com/links/code/license
@@ -14,7 +14,7 @@
 -- Everythign runs 95% as expected via QuickPorter.lua and associated files
 ---------------------------------------------------------------------------------------
 
-require("mobdebug").start()
+--require("mobdebug").start()
 
 dofile("QuickPorter.lua")
 
@@ -89,12 +89,10 @@ trampoline = display.newImage( "trampoline.png" )
 game:insert( trampoline )
 
 physics.addBody( trampoline, "static", { friction=0.5, bounce=1.2 } )
-
---trampoline.__node.physics:setTransform(55,355,-45)
-
-trampoline.x = 50 
+trampoline.x = 50
 trampoline.y = 355
 trampoline.rotation = 45
+
 
 
 ------------------------------------------------------------------------
@@ -158,6 +156,7 @@ egg3 = movieclip.newAnim{ "egg.png", "egg_cracked.png" }
 game:insert( egg3 ); egg3.x = 744; egg3.y = 258; egg3.id = "egg3"
 physics.addBody( egg3, eggBody )
 
+
 ------------------------------------------------------------
 -- Simple score display
 local scoreDisplay = display.newText( "0", 0, 0, native.systemFont, 32 )
@@ -174,7 +173,7 @@ local boulder = display.newImage( "boulder.png" )
 game:insert( boulder )
 
 -- initial body type is "kinematic" so it doesn't fall under gravity
-physics.addBody( boulder, { density=15.0, friction=0.5, bounce=0.2, radius=36, bodyType = "kinematic" } )
+physics.addBody( boulder, { density=15.0, friction=0.5, bounce=0.2, radius=36 } )
 
 local function resetBoulder()
 	boulder.bodyType = "kinematic"
@@ -210,9 +209,9 @@ function startListening()
 	local function onEggCollision ( self, event )
 
 		-- uses "postSolve" event to get collision force
-		
+
 		print( "force: " .. event.force )
-		
+
 		-- Crack this egg if collision force is high enough
 		if ( event.force > 6.0 ) then
 ----------------------------------------------------
@@ -229,17 +228,17 @@ function startListening()
 			self:removeEventListener( "postCollision", self )
 		end
 	end
-	
+
 	-- Set table listeners in each egg to check for collisions
 	egg1.postCollision = onEggCollision
 	egg1:addEventListener( "postCollision", egg1 )
-	
+
 	egg2.postCollision = onEggCollision
 	egg2:addEventListener( "postCollision", egg2 )
-	
+
 	egg3.postCollision = onEggCollision
 	egg3:addEventListener( "postCollision", egg3 )
-	
+
 end
 
 
@@ -265,11 +264,10 @@ local function dropBoulder ( event )
 		boulder.y = event.y
 		-- change body type to dynamic, so gravity affects it
 		boulder.bodyType = "dynamic"
-        
-		--startListening()
+
+		startListening()
 	end
 end
-startListening()
 
 local function newRound( event )
 	resetBoulder()
@@ -283,13 +281,14 @@ local resetButton = widget.newButton
 	defaultFile = "buttonRed.png",
 	overFile = "buttonRedOver.png",
 	label = "New Boulder",
-	labelColor = 
-	{ 
-		default = { 255 }, 
+	labelColor =
+	{
+		default = { 255 },
 	},
 	emboss = true,
 	onPress = newRound
 }
+
 resetButton.x = 160
 resetButton.y = 450
 
@@ -299,4 +298,3 @@ timer.performWithDelay( 3000, startListening )
 
 -- Finally, add a touch listener to the sky, for creating new boulders
 sky:addEventListener( "touch", dropBoulder )
-
