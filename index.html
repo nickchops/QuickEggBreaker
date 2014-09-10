@@ -1,0 +1,309 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="chrome=1">
+    <title>QuickEggBreaker (Corona -&gt; Marmalade port) by nickchops</title>
+    <link rel="stylesheet" href="stylesheets/styles.css">
+    <link rel="stylesheet" href="stylesheets/pygment_trac.css">
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js"></script>
+    <script src="javascripts/main.js"></script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+
+  </head>
+  <body>
+
+      <header>
+        <h1>QuickEggBreaker (Corona -&gt; Marmalade port)</h1>
+        <p>Example project for recompiling Corona source directly to Marmalade Quick</p>
+      </header>
+
+      <div id="banner">
+        <span id="logo"></span>
+
+        <a href="https://github.com/nickchops/QuickEggBreaker" class="button fork"><strong>View On GitHub</strong></a>
+        <div class="downloads">
+          <span>Downloads:</span>
+          <ul>
+            <li><a href="https://github.com/nickchops/QuickEggBreaker/zipball/master" class="button">ZIP</a></li>
+            <li><a href="https://github.com/nickchops/QuickEggBreaker/tarball/master" class="button">TAR</a></li>
+          </ul>
+        </div>
+      </div><!-- end banner -->
+
+    <div class="wrapper">
+      <nav>
+        <ul></ul>
+      </nav>
+      <section>
+        <p>I was recently asked “how easy would it be to port a game from Corona to Marmalade”. I wasn't really sure... So I did some porting!</p>
+
+<h1>
+<a name="why-port-to-marmalade" class="anchor" href="#why-port-to-marmalade"><span class="octicon octicon-link"></span></a>Why port to Marmalade?</h1>
+
+<p>Both SDKs support iOS and Android deployments, but Marmalade adds support for:</p>
+
+<ul>
+<li>Windows Phone, BlackBerry 10, Mac OS X, Windows Desktop, Windows Store, Roku and LG TV platforms</li>
+<li>Open source engine internals (Lua and C++ components) using the popular Cocos2d-x framework. If a feature can be done in Cocos2d then Quick can be made to support it.</li>
+<li>Access to Marmalade’s huge 3rd party ecosystem: Game services, cross-promotion, cloud services, advertisements, cross-platform billing, your own custom integrations…</li>
+<li>The ability to build locally (Corona builds remotely), including local iOS builds on a Windows PC.</li>
+</ul><h1>
+<a name="similar-looking-beasts-with-very-different-insides" class="anchor" href="#similar-looking-beasts-with-very-different-insides"><span class="octicon octicon-link"></span></a>Similar looking beasts with very different insides</h1>
+
+<p>Marmalade Quick is a set of tools and an open source engine that sits on top of the regular Marmalade C++ SDK. Marmalade Quick and Corona share a lot of similarities: both are 2D, use Lua for the language, have a scene graph with nodes/objects that are sprites, polygons or text and use Box2D for physics. They have similar, though far from identical, API signatures as well, plus a lot of similar libraries and types. However, they also have a lot of differences under the hood and each has features that the other does not support out of the box.</p>
+
+<p>Although some core libraries have different names and the mechanics vary, some libraries are very similar and the majority of parameters are identical. I would expect around 30-60% of an app’s code to work without changes. Brute force porting from Corona to Quick would therefore be a case of replacing any non matching calls and types with the Quick equivalent, plus changing coordinate values (see below) and filling any API gaps.</p>
+
+<p>Porting any app from Corona to Quick should ultimately be possible: a user could provide an implementation of any currently unsupported Corona feature in Quick since Quick can be extended to access all core Marmalade APIs, which can themselves be extended to support most platform capabilities (via the C++ Extensions Development Kit). Going from Quick to Corona ought to be similar for the core Quick API, but not beyond that since Corona’s libraries and build system are closed.</p>
+
+<h1>
+<a name="some-challenges" class="anchor" href="#some-challenges"><span class="octicon octicon-link"></span></a>Some challenges</h1>
+
+<p><strong>Scene and object libraries:</strong> Corona uses a library called Display which creates DisplayObjects - visual or container nodes used to create a 2D scene graph. Originally there was no higher level component to manage scenes and resources but a popular 3rd party open source library called “Director” was available. Corona then added Storyboards, which was deprecated and replaced with Composer for the same job. In contrast, Marmalade Quick uses an API that handles both creating nodes and managing scenes, also called Director. Quick’s is based on Cocos2d’s Director singleton, which was likely the inspiration for the 3rd party Corona original too.</p>
+
+<p><strong>Coordinate spaces:</strong> Corona’s coordinate system has the origin at the top left with Y axis going down the screen. Quick matches Cocos2d’s behaviour, with origin at bottom left and Y going up.</p>
+
+<p><strong>Functions vs properties:</strong> Some values are got and set via function calls in one API and by property read/assignment in the other.</p>
+
+<p><strong>Events and parameters:</strong> Some events are system ones in one API and related to a node/object in the other or vice versa. Corona accepts a “params” parameter to event registration functions so that user-data can be passed back to event handlers; Quick does not support this. Event names and signatures vary between SDKs.</p>
+
+<p><strong>Bloat in Corona APIs:</strong> Quick condenses some Corona APIs. For example it has just a single Sprite type for image based objects, whereas Corona has Images and Sprites; both of those can be replaced with Quick’s Sprite. Corona has GroupObjects, which are non-visible and the only object that can act as a parent for creating trees of display objects, plus Containers, which allow you to apply clipping to any child objects. In Quick any Node object can have children, Nodes themselves can be non-visible and any Node can also have clipping applied to it and it’s children.</p>
+
+<h1>
+<a name="porting-a-real-example" class="anchor" href="#porting-a-real-example"><span class="octicon octicon-link"></span></a>Porting a real example</h1>
+
+<p>I decided to jump straight in and start porting:</p>
+
+<ol>
+<li>I selected an MIT-licensed example from the Corona SDK. I chose Egg Breakers - <a href="http://coronalabs.com/sample-apps/egg-breakers">http://coronalabs.com/sample-apps/egg-breakers</a> - since it is compact but has a good use of key features:
+
+<ul>
+<li>A single but sizable main.lua source file, plus a small open source utility library</li>
+<li>The vanilla Display library to create objects</li>
+<li>Objects of types: Images, physics, labels, button</li>
+<li>Global and object events and a timer </li>
+</ul>
+</li>
+<li>I pushed the source version to Github: github.com/nickchops/QuickEggBreaker #1</li>
+<li>I created an empty Marmalade Quick project in the git root folder and moved the original source into the default “resources” folder (NB: you can configure a project to look in any folder to leave the source where it is if needed; I kept it simple for this exercise!)</li>
+<li>I started porting the code from top down in the games source...</li>
+</ol><h1>
+<a name="stop-brute-force-porting-sucks---lua-can-do-better" class="anchor" href="#stop-brute-force-porting-sucks---lua-can-do-better"><span class="octicon octicon-link"></span></a>Stop! Brute force porting sucks - Lua can do better...</h1>
+
+<p>Given how similar the APIs are, can we do something smarter and more reusable than changing our game code? Yes we can! Since Lua is a flexible language with dynamic types and relatively high performance, we can re-map Corona APIs to quick equivalents by defining or redefining their implementations. A few lines into porting the example, I reverted the changes and switched to this approach so other users can take advantage of my hard work.</p>
+
+<h2>
+<a name="a-working-auto-ported-example-running-in-marmalade" class="anchor" href="#a-working-auto-ported-example-running-in-marmalade"><span class="octicon octicon-link"></span></a>A working auto-ported example running in Marmalade</h2>
+
+<p>Let’s skip the implementation details for a minute and see the results. After working through the code and creating mappings for all the APIs used, I pushed the final version to the web:</p>
+
+<blockquote>
+<p><a href="http://github.com/nickchops/QuickEggBreaker">http://github.com/nickchops/QuickEggBreaker</a></p>
+</blockquote>
+
+<p>Go ahead and import this in Marmalade’s Hub, then run it in the simulator or on any supported device! Note the only very tiny changes made to the original project. The source game is almost identical but a new set of Lua files are responsible for redirecting calls as needed.</p>
+
+<h1>
+<a name="implementing-the-porting-layer" class="anchor" href="#implementing-the-porting-layer"><span class="octicon octicon-link"></span></a>Implementing the porting layer</h1>
+
+<h2>
+<a name="defining-apis-that-are-new-to-quick" class="anchor" href="#defining-apis-that-are-new-to-quick"><span class="octicon octicon-link"></span></a>Defining APIs that are new to Quick</h2>
+
+<ul>
+<li><p>First we add source files for any Corona libraries, for example “display.lua” and “physics.lua”. Quick’s files all start with “Q” - e.g. “QPhysics” and are included automatically so there are no potential clashes.
+Corona app code must include some libs manually, for example <code>local physics = require("physics")</code>. Our one change to our apps source code is to add require calls for libraries that Corona would add automatically - e.g. <code>require(display)</code>.</p></li>
+<li><p>Display’s main job is to create DisplayObjects. We can implement it’s creation calls with Quick’s Director, returning the generated Nodes to be used in place of DisplayObjects. Matching functions would then just work. E.g. Corona’s GroupObject can just be a vanilla non-visual Node in Quick, created by adding this to our new display.lua:</p></li>
+</ul><pre><code>display = {}
+
+function display.newGroup()
+    return director:createNode()
+end
+</code></pre>
+
+<ul>
+<li>Quick has a “class” that each Node type (node, sprite, label, etc) uses, plus some inherit from each other. The base type is QNode. Since we are using vanilla Nodes above to implement Corona’s groups, we can add implementations of GroupObject functions to the QNode class like this:</li>
+</ul><pre><code>function QNode:removeSelf() -- define Corona interface...
+    self:removeFromParent() -- ...using Quick interface
+end
+
+function QNode:insert(self, child)
+    self:addChild(child)
+end
+</code></pre>
+
+<h2>
+<a name="overriding-existing-quick-apis" class="anchor" href="#overriding-existing-quick-apis"><span class="octicon octicon-link"></span></a>Overriding existing Quick APIs</h2>
+
+<p>If a named function exists in Quick but the behaviour needs to change, we can replace or intercept it. All variables in Lua are references that can be reassigned at any time.
+Example: Both APIs have audio.loadSound and audio.loadStream. However Corona’s return handles which are passed to a generic <code>play()</code> function while Quick stores handles internally but has separate <code>playSound()</code> and <code>playStream()</code> functions. Our overrides look like this:</p>
+
+<pre><code>--keep handle to Quick function
+audio.loadSound_orig = audio.loadSound 
+
+--redefine function (takes extra param as well)
+audio.loadSound = function(fileName, baseDir)
+    if baseDir then fileName = baseDir .. "/" .. fileName end
+    audio:loadSound_orig(fileName) --call original
+    -- original has no return value! so create handle
+    local handle = {portType = "sound", fileName = fileName}
+    return handle
+end
+
+audio.loadStream_orig = audio.loadStream
+audio.loadStream = function(fileName, baseDir)
+    if baseDir then fileName = baseDir .. "/" .. fileName end
+    audio:loadStream_orig(fileName)
+    local handle = {portType = "stream", fileName = fileName}
+    return handle
+end
+
+function audio.play(handle, options)
+    local loop = options.loops
+
+    -- use our handle to pick function to call
+    if handle.portType == "stream" then
+        audio:playStream(handle.fileName, loop)
+    else
+        audio:playSound(handle.fileName, loop)
+    end
+end
+``
+
+##Fixing our coordinates mismatch##
+To match Corona’s coord system, at the start we just need to flip and move the main y origin, aka the scene itself:
+</code></pre>
+
+<p>quickPorter.scene = director:getCurrentScene()
+quickPorter.scene.yScale=-1
+quickPorter.scene.y = director.displayHeight</p>
+
+<pre><code>Then for some types and features, we need to flip things back in Y. Examples:
+- Sprite image direction: Quick has a handy flag for this, so just set `myNode.yFlip = true` inside `display.CreateImage()` etc.
+- For physics, we need to reverse the gravity!
+</code></pre>
+
+<p>local xGravity,yGravity = physics:getGravity()
+physics:setGravity(xGravity,-yGravity)</p>
+
+<p>-- plus override physics.getGravity and physics.setGravity!</p>
+
+<pre><code>
+#Lua Metatables: where the real fun begins!#
+
+Metatables are Lua’s killer feature. Using them cleverly we can redirect any function or property call on a table to do whatever the hell we want! For example, `myObject.valueA = 27` could be converted to a call to `myOtherObject:setA(27+myObject.offset)`. Hopefully it’s instantly clear that this will be useful in our porter!
+
+##A quick intro to Metatables##
+In Lua, you can set any table to be the metatable of another table. Whenever the original table has certain actions performed on it, its metatable will be checked for functions with names that correspond to the action, and if the named function is found then it will be called. The actions supported include operators like trying to add or multiply tables, built in functions like `tostring()` and some special keys like `__index`.
+
+A simple example for the add operator:
+</code></pre>
+
+<p>myMetatable = {}
+myMetatable.__add = function(v1, v2)
+    --do what you want here
+end</p>
+
+<p>myTable = {}
+setmetatable(myTable, myMetatable)</p>
+
+<p>myVar = myTable + 5
+--will call the __add function with v1=myTable and v2=5</p>
+
+<pre><code>
+The two metatable functions of interest to us are `__index` and `__newindex`. The __index function is called if `myTable.someIndex` is called when someIndex is nil. Note that this includes function calls like `myTable.someFunction()`. __newindex is called if `myTable.someIndex = someValue` is called (an assignment) and someIndex is nil.
+
+##Using metatables in the porter##
+By having a table with index/newindex functions and setting it as the metatable for each node we create in our wrapper, we can then intercept any call and redirect it. Remember that this only works for indexes that are nil (not just for any index lookup) so we need the “node” itself to be a completely empty table!
+Updating our example from earlier, we make the objects returned to the game code into simple, almost empty tables, with the Quick nodes inside them (I’m using __node as a name that is unlikely to clash with game code!) and then we use display itself as our metatable for convenience:
+</code></pre>
+
+<p>function display.newGroup()
+    local group = {}
+    group.__node = director:createNode()
+    setmetatable(group, display)
+    return group
+end</p>
+
+<pre><code>Passing simple tables to the game code, as opposed to Quick Nodes, is a good idea for other reasons: (1) if we tried to set a metatable for an actual Node then things get fiddly since nodes are really userdata types that already have metatables set as part of how classes are implemented in the engine, (2) we avoid having to know anything about Quick’s node object internals or accidentally redefining important indices; the less to touch the Quick nodes directly, the better.
+
+Now we need to implement the index functions for our display metatable. Note that the “table” param here is the original table, for example “group” in the newGroup function above.
+</code></pre>
+
+<p>display.__index = function (table, key)
+    --we can manually override named functions or properties here
+    if key == "someName" then
+        -- do something
+    elseif key == "otherName" then
+        -- do something else
+    else
+        return table.__node[key] --use the Quick node's value
+    end
+end</p>
+
+<p>display.__newindex = function (table, key, value)
+    if key == "someName" then
+        -- do something</p>
+
+<pre><code>else
+    node[key] = value --set the nodes value
+end
+</code></pre>
+
+<p>end</p>
+
+<pre><code>
+##Directing a property access to a function call##
+Let’s look at a real example of redirecting calls with the index functions. In Corona’s physics, you get/set angular velocity via the `myObject.angularVelocity` property. In Quick, we use the `myNode.physics:getAngularVelocity()` function (or its set() equivalent). Note the change from property to function and also the need to call the `.physics` sub-object of the node.
+
+Using our `.__index` and `.__newindex` metatable methods, we can intercept the point where that property (table index) get’s accessed and then just call whatever we want:
+</code></pre>
+
+<p>display.__index = function (table, key)
+    if key == "angularVelocity" then
+        return table.__node.physics:getAngularVelocity()
+        --etc</p>
+
+<p>display.__newindex = function (table, key, value)
+    if key == "angularVelocity" then
+        return table.__node.physics:setAngularVelocity(value)
+        --etc</p>
+
+<pre><code>
+#And that’s all we need to know to implement/replace anything!#
+I worked top to bottom through my example code, adding wrappers, implementations and metatable overrides as needed. Generally I just did the minimum needed to port this one example app, but in some cases I proactively added handy functions for future projects to use.
+
+&gt; Check out the finished project here: github.com/nickchops/QuickEggBreaker 
+
+#What’s Next?#
+Our example is a great starting point for porting your own project. It could be extended to become a rich porting layer that removes 90%+ of the work for a given title. Currently it only supports a subset of APIs but is easy to extend. A key piece of work is to implement Corona’s director/storyboards/composer functionality if needed (remember not to allow one “director” to replace the other!) What about other Lua toolkits like Moai, Love or Guideros? The porting concepts should work for those too, and once again portability will depend on features needed.
+
+#Extending Quick to fill feature gaps#
+Both APIs have libraries and features not available in the other. Significant use of unsupported features might mean porting is not appropriate. When porting, be aware that Corona features that do not yet exist in Quick will require adding an implementation to the Lua or C++ source of Quick, or maybe an extension to Marmalade’s abstraction layer, or just removing from your game. Some key ones to bare in mind:
+- Corona has a Widgets API for creating skinned or native-looking UIs. Quick currently has no UI/Widgets library. For my example, all I needed was a button so I created a simple button implementation in about 5 minutes. Porting a full UI-based app to Quick would take quite a bit of work as you’d need to build the whole widgets framework.
+- Corona has some nice new graphics APIs since the launch of its “Graphics v2” upgrade. I’ve added Quick feature requests for some listed here. Because Quick is built on the open source and rich C++ Cocos2d-x rendering engine, there’s no tech barrier to implementing them, either officially or by enterprising users...
+  - Render to texture
+  - 2.5D perspective effects using bounding box deformation
+  - Built in effects/shaders for node objects
+  - Fill and stroke any object: Corona lets you add textures to anything, e.g. add texture to a polygon while Quick separates sprites and solid colour objects
+  - Gradient fills
+- Overlay scenes: Corona lets you show two scenes at once - this could be synthesised in Quick by just using a single scene with two Nodes instead of two scenes!
+
+#Useful Links#
+- Download Marmalade and get started with Quick: http://madewithmarmalade.com/download
+- The GitHub porter project (fork it!): http://github.com/nickchops/QuickEggBreaker
+- Use new C++ APIs in Quick: http://madewithmarmalade.com/blog/extending-marmalade-quick
+</code></pre>
+      </section>
+      <footer>
+        <p>Project maintained by <a href="https://github.com/nickchops">nickchops</a></p>
+        <p><small>Hosted on GitHub Pages &mdash; Theme by <a href="https://twitter.com/michigangraham">mattgraham</a></small></p>
+      </footer>
+    </div>
+    <!--[if !IE]><script>fixScale(document);</script><![endif]-->
+    
+  </body>
+</html>
